@@ -30,6 +30,11 @@ namespace PendulumSimulator.Analysis
             return new PendulumSystemField(systems);
         }
 
+        public static ThetaObservedField BuildObserved(PendulumSystemSpec spec, ThetaObservation observation)
+        {
+            return new ThetaObservedField(Build(spec, observation), observation);
+        }
+
         static void ValidateCompatibility(PendulumSystemSpec spec, IObservation observation)
         {
             if (observation.StartIndex + observation.Dimension > spec.PendulumCount)
