@@ -5,6 +5,8 @@ namespace PendulumSimulator.Viewer
 {
     public class SimulatorConfiguration
     {
+        public string? OutputDirectory { get; init; }
+
         public ViewerMode? Mode { get; init; }
 
         public PendulumColorScheme? ColorScheme { get; set; }

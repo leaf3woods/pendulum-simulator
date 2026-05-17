@@ -100,12 +100,13 @@ namespace PendulumSimulator.Viewer
                     SimulationStepsPerFrame = config.Render.SimulationStepsPerFrame
                 } :
                 Video2DViewOptions.Default.Render with { ColorScheme = config!.ColorScheme!.Value };
-
+            
             var options = Video2DViewOptions.Default with
             {
                 Render = render,
                 DurationSeconds = config.DurationSeconds,
                 Fps = config.Fps,
+                OutputDirectory = config.OutputDirectory ?? string.Empty,
             };
             var view = new Video2DView(options);
             view.Run(field, observation);

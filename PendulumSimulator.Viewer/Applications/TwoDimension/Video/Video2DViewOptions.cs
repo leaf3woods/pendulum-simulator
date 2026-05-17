@@ -14,7 +14,7 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
         /// </summary>
         public RenderOptions Render { get; init; } = new();
 
-        public string OutputPath { get; init; } = "pendulum_2d.mp4";
+        public string OutputDirectory { get; init; } = string.Empty;
 
         public int Fps { get; init; } = 30;
 

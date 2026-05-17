@@ -13,12 +13,14 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
     public class Video2DView : IPendulum2DView
     {
         private readonly Video2DViewOptions _options;
+        private string _fileName;
 
         public Video2DView(Video2DViewOptions options)
         {
             ArgumentNullException.ThrowIfNull(options);
             ValidateOptions(options);
             _options = options;
+            _fileName = "pendulum_2d.mp4";
         }
 
         public void Run(PendulumSystemField field, ThetaObservation observation)
@@ -39,17 +41,23 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
                     $"Field sample count ({field.Count}) does not match observation grid ({expectedSampleCount}).",
                     nameof(field));
 
+            _fileName = $"pendulum_x{field.PendulumCount}_{resolution}x{resolution}_{_options.Fps}fps.mp4";
+            if(!Directory.Exists(_options.OutputDirectory))
+            {
+                Directory.CreateDirectory(_options.OutputDirectory);
+            }
+            var filePath = Path.Combine(_options.OutputDirectory, _fileName);
+
             // OpenCV 的默认视频帧格式为 BGR，每个网格样本占 3 个字节。
             var frameBuffer = new byte[resolution * resolution * 3];
-
             using var writer = new VideoWriter(
-                _options.OutputPath,
+                filePath,
                 VideoWriter.FourCC(_options.Codec[0], _options.Codec[1], _options.Codec[2], _options.Codec[3]),
                 _options.Fps,
                 new Size(resolution, resolution));
 
             if (!writer.IsOpened())
-                throw new InvalidOperationException($"Video writer could not open {_options.OutputPath}.");
+                throw new InvalidOperationException($"Video writer could not open {filePath}.");
 
             using var frameMat = new Mat(resolution, resolution, MatType.CV_8UC3);
             var stopwatch = Stopwatch.StartNew();
@@ -70,14 +78,14 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
             }
 
             Console.WriteLine();
-            Console.WriteLine($"done: {_options.OutputPath}, {stopwatch.Elapsed.TotalSeconds:F2}s");
+            Console.WriteLine($"done: {filePath}, {stopwatch.Elapsed.TotalSeconds:F2}s");
         }
 
         void PrintHeader(ThetaObservation observation, PendulumSystemField field, double size = 0)
         {
             var rows = new[]
             {
-                (Item: "output",     Value: _options.OutputPath, Extra: "size",     Info: size == 0 ? "unknown" : $"{size:0.00} MB"),
+                (Item: "output",     Value: _fileName, Extra: "size",     Info: size == 0 ? "unknown" : $"{size:0.00} MB"),
                 (Item: "resolution", Value: $"({observation.Resolution} x {observation.Resolution})", Extra: "fps", Info: $"{_options.Fps} fps"),
                 (Item: "frames",     Value: $"{_options.FrameCount} frames", Extra: "duration", Info: $"{_options.DurationSeconds} s"),
                 (Item: "observed",   Value: $"theta[{observation.StartPendulumIndex}], theta[{observation.StartPendulumIndex + 1}]", Extra: "systems", Info: $"{field.Count} pic")
@@ -145,8 +153,8 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
                 throw new ArgumentOutOfRangeException(nameof(options), "Fps must be greater than 0.");
             if (options.DurationSeconds <= 0)
                 throw new ArgumentOutOfRangeException(nameof(options), "DurationSeconds must be greater than 0.");
-            if (string.IsNullOrEmpty(options.OutputPath))
-                throw new ArgumentException("OutputPath cannot be empty.", nameof(options));
+            if (string.IsNullOrEmpty(options.OutputDirectory))
+                throw new ArgumentException("OutputDirectory cannot be empty.", nameof(options));
             if (options.Codec is null || options.Codec.Length != 4)
                 throw new ArgumentException("Codec must contain exactly 4 characters.", nameof(options));
         }
