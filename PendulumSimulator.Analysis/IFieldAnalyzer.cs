@@ -1,3 +1,4 @@
+using PendulumSimulator.Analysis.Observation;
 using PendulumSimulator.Core.PhysicsSystem;
 
 namespace PendulumSimulator.Analysis
@@ -10,6 +11,6 @@ namespace PendulumSimulator.Analysis
     /// </remarks>
     public interface IFieldAnalyzer<TResult>
     {
-        NdArray<TResult> Analyze(PendulumSystemField field, ThetaObservation observation);
+        NdArray<TResult> Analyze(PendulumSystemField field, IObservation<double> observation);
     }
 }

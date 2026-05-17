@@ -1,3 +1,4 @@
+using PendulumSimulator.Analysis.Observation;
 using PendulumSimulator.Core.PhysicsSystem;
 
 namespace PendulumSimulator.Analysis
@@ -8,7 +9,8 @@ namespace PendulumSimulator.Analysis
     /// </summary>
     public static class PendulumSystemFieldFactory
     {
-        public static PendulumSystemField Build(PendulumSystemSpec spec, ThetaObservation observation)
+        public static PendulumSystemField Build<TTarget>(PendulumSystemSpec spec, IObservation<TTarget> observation)
+            where TTarget : struct
         {
             ArgumentNullException.ThrowIfNull(spec);
             ArgumentNullException.ThrowIfNull(observation);
@@ -28,22 +30,24 @@ namespace PendulumSimulator.Analysis
             return new PendulumSystemField(systems);
         }
 
-        static void ValidateCompatibility(PendulumSystemSpec spec, ThetaObservation observation)
+        static void ValidateCompatibility(PendulumSystemSpec spec, IObservation observation)
         {
-            if (observation.StartPendulumIndex + observation.Dimension > spec.PendulumCount)
+            if (observation.StartIndex + observation.Dimension > spec.PendulumCount)
                 throw new ArgumentException(
-                    $"Observed angle range [{observation.StartPendulumIndex}, {observation.StartPendulumIndex + observation.Dimension}) "
+                    $"Observed angle range [{observation.StartIndex}, {observation.StartIndex + observation.Dimension}) "
                     + $"exceeds pendulum count ({spec.PendulumCount}).",
                     nameof(observation));
         }
 
-        static PendulumSystem BuildSystemAt(PendulumSystemSpec spec, ThetaObservation observation, int sampleIndex)
+        static PendulumSystem BuildSystemAt<TTarget>(PendulumSystemSpec spec,
+            IObservation<TTarget> observation, int sampleIndex)
+            where TTarget : struct
         {
             // 将线性样本索引还原为观测空间坐标，再映射到对应摆的初始角度。
             int[] coordinates = observation.GetCoordinates(sampleIndex);
             var pendulums = new Pendulum[spec.PendulumCount];
 
-            for (int i = 0; i < spec.PendulumCount; i++)
+            for (var i = 0; i < spec.PendulumCount; i++)
             {
                 pendulums[i] = new Pendulum(
                     theta: spec.DefaultThetas[i],
@@ -52,10 +56,22 @@ namespace PendulumSimulator.Analysis
                     length: spec.Length);
             }
 
-            for (int axis = 0; axis < observation.Dimension; axis++)
+            for (var axis = 0; axis < observation.Dimension; axis++)
             {
-                int pendulumIndex = observation.StartPendulumIndex + axis;
-                pendulums[pendulumIndex].Theta = observation.MapTheta(coordinates[axis]);
+                var pendulumIndex = observation.StartIndex + axis;
+                if(observation is ThetaObservation)
+                {
+                    pendulums[pendulumIndex].Theta = Convert.ToDouble(observation.MapTarget(coordinates[axis]));
+                }
+                else if (observation is OmegaObservation)
+                {
+                    pendulums[pendulumIndex].Omega = Convert.ToDouble(observation.MapTarget(coordinates[axis]));
+                }
+                else
+                {
+                    throw new NotSupportedException($"Unsupported observation target type: {typeof(TTarget)}.");
+                }
+
             }
 
             return new PendulumSystem(pendulums);

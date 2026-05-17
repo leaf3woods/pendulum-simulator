@@ -1,4 +1,4 @@
-using PendulumSimulator.Analysis;
+using PendulumSimulator.Analysis.Observation;
 using Xunit;
 
 namespace PendulumSimulator.Tests.Analysis
@@ -10,11 +10,11 @@ namespace PendulumSimulator.Tests.Analysis
         {
             var observation = new ThetaObservation
             {
-                StartPendulumIndex = 1,
+                StartIndex = 1,
                 Dimension = 3,
                 Resolution = 4,
-                ThetaMin = -Math.PI,
-                ThetaMax = Math.PI,
+                Minimum = -Math.PI,
+                Maximum = Math.PI,
             };
 
             Assert.Equal(64, observation.SampleCount);
@@ -25,11 +25,11 @@ namespace PendulumSimulator.Tests.Analysis
         {
             var observation = new ThetaObservation
             {
-                StartPendulumIndex = 0,
+                StartIndex = 0,
                 Dimension = 3,
                 Resolution = 4,
-                ThetaMin = -Math.PI,
-                ThetaMax = Math.PI,
+                Minimum = -Math.PI,
+                Maximum = Math.PI,
             };
 
             Assert.Equal([0, 0, 0], observation.GetCoordinates(0));
@@ -42,16 +42,16 @@ namespace PendulumSimulator.Tests.Analysis
         {
             var observation = new ThetaObservation
             {
-                StartPendulumIndex = 0,
+                StartIndex = 0,
                 Dimension = 1,
                 Resolution = 3,
-                ThetaMin = -1.0,
-                ThetaMax = 1.0,
+                Minimum = -1.0,
+                Maximum = 1.0,
             };
 
-            Assert.Equal(-1.0, observation.MapTheta(0), precision: 12);
-            Assert.Equal(0.0, observation.MapTheta(1), precision: 12);
-            Assert.Equal(1.0, observation.MapTheta(2), precision: 12);
+            Assert.Equal(-1.0, observation.MapTarget(0), precision: 12);
+            Assert.Equal(0.0, observation.MapTarget(1), precision: 12);
+            Assert.Equal(1.0, observation.MapTarget(2), precision: 12);
         }
 
         [Fact]
@@ -59,14 +59,31 @@ namespace PendulumSimulator.Tests.Analysis
         {
             var observation = new ThetaObservation
             {
-                StartPendulumIndex = 0,
+                StartIndex = 0,
                 Dimension = 1,
                 Resolution = 1,
-                ThetaMin = -1.0,
-                ThetaMax = 3.0,
+                Minimum = -1.0,
+                Maximum = 3.0,
             };
 
-            Assert.Equal(1.0, observation.MapTheta(0), precision: 12);
+            Assert.Equal(1.0, observation.MapTarget(0), precision: 12);
+        }
+
+        [Fact]
+        public void MapOmegaSpansRangeInclusive()
+        {
+            var observation = new OmegaObservation
+            {
+                StartIndex = 0,
+                Dimension = 1,
+                Resolution = 3,
+                Minimum = -2.0,
+                Maximum = 2.0,
+            };
+
+            Assert.Equal(-2.0, observation.MapTarget(0), precision: 12);
+            Assert.Equal(0.0, observation.MapTarget(1), precision: 12);
+            Assert.Equal(2.0, observation.MapTarget(2), precision: 12);
         }
 
         [Fact]
@@ -74,11 +91,11 @@ namespace PendulumSimulator.Tests.Analysis
         {
             var observation = new ThetaObservation
             {
-                StartPendulumIndex = -1,
+                StartIndex = -1,
                 Dimension = 2,
                 Resolution = 4,
-                ThetaMin = -1,
-                ThetaMax = 1,
+                Minimum = -1,
+                Maximum = 1,
             };
 
             Assert.Throws<ArgumentOutOfRangeException>(observation.Validate);
@@ -89,11 +106,11 @@ namespace PendulumSimulator.Tests.Analysis
         {
             var observation = new ThetaObservation
             {
-                StartPendulumIndex = 0,
+                StartIndex = 0,
                 Dimension = 0,
                 Resolution = 4,
-                ThetaMin = -1,
-                ThetaMax = 1,
+                Minimum = -1,
+                Maximum = 1,
             };
 
             Assert.Throws<ArgumentOutOfRangeException>(observation.Validate);
@@ -104,11 +121,11 @@ namespace PendulumSimulator.Tests.Analysis
         {
             var observation = new ThetaObservation
             {
-                StartPendulumIndex = 0,
+                StartIndex = 0,
                 Dimension = 2,
                 Resolution = 0,
-                ThetaMin = -1,
-                ThetaMax = 1,
+                Minimum = -1,
+                Maximum = 1,
             };
 
             Assert.Throws<ArgumentOutOfRangeException>(observation.Validate);

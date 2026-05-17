@@ -1,4 +1,4 @@
-using PendulumSimulator.Analysis;
+using PendulumSimulator.Analysis.Observation;
 using PendulumSimulator.Core.PhysicsSystem;
 
 namespace PendulumSimulator.Viewer.Applications.ThreeDimension
@@ -27,7 +27,7 @@ namespace PendulumSimulator.Viewer.Applications.ThreeDimension
                     nameof(observation));
 
             Console.WriteLine("3D observation built (stub renderer).");
-            Console.WriteLine($"x=theta[{observation.StartPendulumIndex}], y=theta[{observation.StartPendulumIndex + 1}], z=theta[{observation.StartPendulumIndex + 2}]");
+            Console.WriteLine($"x=theta[{observation.StartIndex}], y=theta[{observation.StartIndex + 1}], z=theta[{observation.StartIndex + 2}]");
             Console.WriteLine($"resolution : {observation.Resolution}^3");
             Console.WriteLine($"systems    : {field.Count}");
             Console.WriteLine($"scheme     : {_options.Render.ColorScheme}");

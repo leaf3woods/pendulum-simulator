@@ -1,4 +1,4 @@
-using PendulumSimulator.Analysis;
+using PendulumSimulator.Analysis.Observation;
 using PendulumSimulator.Core.PhysicsSystem;
 
 namespace PendulumSimulator.Viewer.Applications.TwoDimension

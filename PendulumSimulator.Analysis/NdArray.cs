@@ -1,3 +1,5 @@
+using PendulumSimulator.Analysis.Observation;
+
 namespace PendulumSimulator.Analysis
 {
     /// <summary>

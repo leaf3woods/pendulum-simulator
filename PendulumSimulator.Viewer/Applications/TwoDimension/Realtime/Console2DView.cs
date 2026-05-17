@@ -1,5 +1,5 @@
 using System.Text;
-using PendulumSimulator.Analysis;
+using PendulumSimulator.Analysis.Observation;
 using PendulumSimulator.Core.PhysicsSystem;
 using PendulumSimulator.Viewer.Rendering;
 
@@ -42,7 +42,7 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Realtime
             Console.CursorVisible = false;
             Console.Clear();
             Console.WriteLine("2D console preview. Press Q or Esc to quit.");
-            Console.WriteLine($"x=theta[{observation.StartPendulumIndex}], y=theta[{observation.StartPendulumIndex + 1}], RGB=current angles, scheme={_options.Render.ColorScheme}");
+            Console.WriteLine($"x=theta[{observation.StartIndex}], y=theta[{observation.StartIndex + 1}], RGB=current angles, scheme={_options.Render.ColorScheme}");
 
             try
             {

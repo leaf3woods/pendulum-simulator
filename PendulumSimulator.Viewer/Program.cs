@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using PendulumSimulator.Analysis;
+using PendulumSimulator.Analysis.Observation;
 using PendulumSimulator.Viewer.Applications.ThreeDimension;
 using PendulumSimulator.Viewer.Applications.TwoDimension.Realtime;
 using PendulumSimulator.Viewer.Applications.TwoDimension.Video;
@@ -86,7 +87,7 @@ namespace PendulumSimulator.Viewer
             var observation = config?.Observation is not null ?
                 ThetaObservation.Default with
                 {
-                    StartPendulumIndex = (config?.Observation?.StartPendulumIndex)!.Value,
+                    StartIndex = (config?.Observation?.StartPendulumIndex)!.Value,
                     Dimension = (config?.Observation?.Dimension)!.Value,
                     Resolution = (config?.Observation?.Resolution)!.Value,
                 } :
@@ -121,7 +122,7 @@ namespace PendulumSimulator.Viewer
             var observation = config?.Observation is not null ?
                 ThetaObservation.Default with
                 {
-                    StartPendulumIndex = (config?.Observation?.StartPendulumIndex)!.Value,
+                    StartIndex = (config?.Observation?.StartPendulumIndex)!.Value,
                     Dimension = (config?.Observation?.Dimension)!.Value,
                     Resolution = (config?.Observation?.Resolution)!.Value,
                 } :
@@ -153,7 +154,7 @@ namespace PendulumSimulator.Viewer
             var observation = config?.Observation is not null ?
                 ThetaObservation.Default with
                 {
-                    StartPendulumIndex = (config?.Observation?.StartPendulumIndex)!.Value,
+                    StartIndex = (config?.Observation?.StartPendulumIndex)!.Value,
                     Dimension = (config?.Observation?.Dimension)!.Value,
                     Resolution = (config?.Observation?.Resolution)!.Value,
                 } :

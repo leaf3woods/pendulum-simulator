@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using OpenCvSharp;
-using PendulumSimulator.Analysis;
+using PendulumSimulator.Analysis.Observation;
 using PendulumSimulator.Core.PhysicsSystem;
 using PendulumSimulator.Viewer.Rendering;
 
@@ -41,7 +41,7 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
                     $"Field sample count ({field.Count}) does not match observation grid ({expectedSampleCount}).",
                     nameof(field));
 
-            _fileName = $"pendulum_{observation.StartPendulumIndex + 1}x{field.PendulumCount}_{resolution}x{resolution}_{_options.Fps}fps.mp4";
+            _fileName = $"pendulum_{observation.StartIndex + 1}x{field.PendulumCount}_{resolution}x{resolution}_{_options.Fps}fps.mp4";
             if(!Directory.Exists(_options.OutputDirectory))
             {
                 Directory.CreateDirectory(_options.OutputDirectory);
@@ -88,7 +88,7 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
                 (Item: "output",     Value: _fileName, Extra: "size",     Info: size == 0 ? "unknown" : $"{size:0.00} MB"),
                 (Item: "resolution", Value: $"[{observation.Resolution}]px x [{observation.Resolution}]px", Extra: "fps", Info: $"{_options.Fps} fps"),
                 (Item: "frames",     Value: $"{_options.FrameCount} frames", Extra: "duration", Info: $"{_options.DurationSeconds} s"),
-                (Item: "observed",   Value: $"theta[{observation.StartPendulumIndex}], theta[{observation.StartPendulumIndex + 1}]", Extra: "systems", Info: $"{field.Count} pic")
+                (Item: "observed",   Value: $"theta[{observation.StartIndex}], theta[{observation.StartIndex + 1}]", Extra: "systems", Info: $"{field.Count} pic")
             };
 
             var headers = new[] { "item", "value", "extra", "info" };
