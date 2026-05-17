@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+  </Folder>
+  <Project Path="PendulumSimulator.Analysis/PendulumSimulator.Analysis.csproj" />
+  <Project Path="PendulumSimulator.Core/PendulumSimulator.Core.csproj" />
+  <Project Path="PendulumSimulator.Tests/PendulumSimulator.Tests.csproj" />
+  <Project Path="PendulumSimulator.Viewer/PendulumSimulator.Viewer.csproj" />
+</Solution>
