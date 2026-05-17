@@ -11,6 +11,7 @@ namespace PendulumSimulator.Core.Mathematics
         /// <returns>返回下一时刻的状态向量。</returns>
         public double[] Step(double[] state, double dt, Func<double[], double[]> derivative)
         {
+            // RK4 使用四次斜率估计来换取更高精度；这也是批量渲染中的主要计算放大项。
             double[] k1 = derivative(state);
             double[] k2 = derivative(Add(state, Scale(k1, dt / 2.0)));
             double[] k3 = derivative(Add(state, Scale(k2, dt / 2.0)));

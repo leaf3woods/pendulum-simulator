@@ -39,6 +39,7 @@ namespace PendulumSimulator.Analysis
 
         static PendulumSystem BuildSystemAt(PendulumSystemSpec spec, ThetaObservation observation, int sampleIndex)
         {
+            // 将线性样本索引还原为观测空间坐标，再映射到对应摆的初始角度。
             int[] coordinates = observation.GetCoordinates(sampleIndex);
             var pendulums = new Pendulum[spec.PendulumCount];
 

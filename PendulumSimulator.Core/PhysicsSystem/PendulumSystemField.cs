@@ -32,6 +32,7 @@ namespace PendulumSimulator.Core.PhysicsSystem
             if (steps <= 0)
                 throw new ArgumentOutOfRangeException(nameof(steps), "Step count must be greater than 0.");
 
+            // 以物理步为外层循环，确保整片场在进入下一步前都停在同一个模拟时间。
             for (int step = 0; step < steps; step++)
             {
                 Parallel.ForEach(_systems, system =>

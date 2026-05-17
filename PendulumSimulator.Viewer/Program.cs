@@ -25,6 +25,7 @@ namespace PendulumSimulator.Viewer
         {
             ViewerMode mode;
             var command = ViewerCommand.Parse(args);
+            // 先读取基础配置，只为确定本次应该启动哪个 viewer mode。
             var baseConfiguration = new ConfigurationBuilder()
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
@@ -46,6 +47,7 @@ namespace PendulumSimulator.Viewer
                 ViewerMode.Video => "appsettings.video.json",
                 _ => throw new ArgumentException($"Unsupported viewer mode: {mode}")
             };
+            // 再用 mode-specific 配置覆盖基础配置，例如 appsettings.video.json 覆盖视频分辨率和帧率。
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)

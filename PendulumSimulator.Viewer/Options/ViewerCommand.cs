@@ -2,6 +2,9 @@ using PendulumSimulator.Viewer.Rendering;
 
 namespace PendulumSimulator.Viewer.Options
 {
+    /// <summary>
+    /// 命令行只覆盖运行模式和配色；物理、分辨率和视频参数继续交给 appsettings 管理。
+    /// </summary>
     public record ViewerCommand(ViewerMode? Mode, PendulumColorScheme? ColorScheme)
     {
         public static ViewerCommand? Parse(IReadOnlyList<string> args)

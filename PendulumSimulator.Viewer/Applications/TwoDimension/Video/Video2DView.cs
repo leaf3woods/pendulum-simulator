@@ -7,6 +7,9 @@ using PendulumSimulator.Viewer.Rendering;
 
 namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
 {
+    /// <summary>
+    /// 将二维初始角度扫描场渲染为视频；每个像素对应一个独立的摆系统样本。
+    /// </summary>
     public class Video2DView : IPendulum2DView
     {
         private readonly Video2DViewOptions _options;
@@ -23,6 +26,7 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
             ArgumentNullException.ThrowIfNull(field);
             ArgumentNullException.ThrowIfNull(observation);
 
+            // 视频视图把二维观测网格直接映射到图像平面，因此只接受 2D observation。
             if (observation.Dimension != 2)
                 throw new ArgumentException(
                     $"Video2DView requires a 2D observation; got Dimension={observation.Dimension}.",
@@ -35,6 +39,7 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
                     $"Field sample count ({field.Count}) does not match observation grid ({expectedSampleCount}).",
                     nameof(field));
 
+            // OpenCV 的默认视频帧格式为 BGR，每个网格样本占 3 个字节。
             var frameBuffer = new byte[resolution * resolution * 3];
 
             using var writer = new VideoWriter(
@@ -55,6 +60,7 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
 
             for (int frame = 0; frame < _options.FrameCount; frame++)
             {
+                // 每帧先推进整批物理系统，再把当前状态映射成颜色。
                 field.Step(_options.Render.TimeStep, _options.Render.SimulationStepsPerFrame);
                 WriteBgrFrame(frameBuffer, field, _options.Render.ColorScheme);
                 Marshal.Copy(frameBuffer, 0, frameMat.Data, frameBuffer.Length);
@@ -122,6 +128,7 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
 
         static void WriteBgrFrame(byte[] buffer, PendulumSystemField field, PendulumColorScheme scheme)
         {
+            // Field 的线性布局与二维图像的 x + y * resolution 顺序一致，可直接顺序写入。
             for (int i = 0; i < field.Count; i++)
             {
                 RgbColor color = PendulumStateColorMap.Map(field[i], scheme);

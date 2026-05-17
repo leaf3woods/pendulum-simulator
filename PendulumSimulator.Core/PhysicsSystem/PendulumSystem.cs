@@ -55,6 +55,7 @@ namespace PendulumSimulator.Core.PhysicsSystem
             if (dt <= 0)
                 throw new ArgumentOutOfRangeException(nameof(dt), "Time step must be greater than 0.");
 
+            // 状态向量是积分器与动力学模型之间的通用边界：前 N 个角度，后 N 个角速度。
             double[] current = ToStateVector();
             double[] next = _integrator.Step(current, dt, state => _dynamics.Derivative(this, state));
             ApplyStateVector(next);

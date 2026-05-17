@@ -14,6 +14,7 @@ namespace PendulumSimulator.Core
             if (state.Count != count * 2)
                 throw new ArgumentException($"State vector must contain {count * 2} values.", nameof(state));
 
+            // Derivative 只读取 system 中的质量/长度等参数；角度和角速度来自传入的候选 state。
             double[] theta = new double[count];
             double[] omega = new double[count];
             double[] tailMasses = BuildTailMasses(system);
@@ -26,6 +27,7 @@ namespace PendulumSimulator.Core
 
             double[,] massMatrix = BuildMassMatrix(system, theta, tailMasses);
             double[] rhs = BuildRightHandSide(system, theta, omega, tailMasses);
+            // 质量矩阵方程 M(theta) * alpha = rhs 给出每根摆的角加速度。
             double[] alpha = LinearSystemSolver.Solve(massMatrix, rhs);
 
             double[] derivative = new double[count * 2];
