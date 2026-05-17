@@ -15,6 +15,7 @@ namespace PendulumSimulator.Viewer
         public static JsonSerializerOptions SerializerOptions { get; } = new(JsonSerializerDefaults.Web)
         {
             WriteIndented = true,
+            PropertyNameCaseInsensitive = true,
             Converters =
             {
                 new JsonNumberEnumConverter<ViewerMode>(),

@@ -41,7 +41,7 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
                     $"Field sample count ({field.Count}) does not match observation grid ({expectedSampleCount}).",
                     nameof(field));
 
-            _fileName = $"pendulum_x{field.PendulumCount}_{resolution}x{resolution}_{_options.Fps}fps.mp4";
+            _fileName = $"pendulum_{observation.StartPendulumIndex + 1}x{field.PendulumCount}_{resolution}x{resolution}_{_options.Fps}fps.mp4";
             if(!Directory.Exists(_options.OutputDirectory))
             {
                 Directory.CreateDirectory(_options.OutputDirectory);
@@ -86,7 +86,7 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
             var rows = new[]
             {
                 (Item: "output",     Value: _fileName, Extra: "size",     Info: size == 0 ? "unknown" : $"{size:0.00} MB"),
-                (Item: "resolution", Value: $"({observation.Resolution} x {observation.Resolution})", Extra: "fps", Info: $"{_options.Fps} fps"),
+                (Item: "resolution", Value: $"[{observation.Resolution}]px x [{observation.Resolution}]px", Extra: "fps", Info: $"{_options.Fps} fps"),
                 (Item: "frames",     Value: $"{_options.FrameCount} frames", Extra: "duration", Info: $"{_options.DurationSeconds} s"),
                 (Item: "observed",   Value: $"theta[{observation.StartPendulumIndex}], theta[{observation.StartPendulumIndex + 1}]", Extra: "systems", Info: $"{field.Count} pic")
             };
@@ -114,13 +114,14 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
 
         static void WriteProgress(int current, int total, TimeSpan elapsed)
         {
-            const int barWidth = 30;
+            const int barWidth = 50;
+            char[] heads = ['-', '\\', '|', '/'];
             double ratio = total == 0 ? 1.0 : (double)current / total;
             var filled = (int)Math.Round(ratio * barWidth);
-            var head = (filled > 0 && filled < barWidth) ? 1 : 0;
+            var head = (filled < barWidth) ? 1 : 0;
             var bar =
-                new string('=', filled - head)
-                + (head == 1 ? ">" : string.Empty)
+                new string('#', filled <= head ? 0 : filled - head)
+                + (head == 1 ? $"{heads[current % heads.Length]}" : string.Empty)
                 + new string(' ', barWidth - filled);
 
             var etaSeconds = current > 0
