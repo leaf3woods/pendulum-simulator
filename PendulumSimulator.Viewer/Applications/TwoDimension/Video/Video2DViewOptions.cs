@@ -1,3 +1,4 @@
+using FFMpegCore.Enums;
 using PendulumSimulator.Viewer.Rendering;
 
 namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
@@ -20,7 +21,16 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
 
         public int DurationSeconds { get; init; } = 20;
 
-        public string Codec { get; init; } = "mp4v";
+        public string Codec { get; init; } = "auto";
+
+        /// <summary>
+        /// CPU 编码时作为 CRF，硬件编码时作为 CQ/global quality/QP。
+        /// </summary>
+        public int ConstantRateFactor { get; init; } = 18;
+
+        public Speed SpeedPreset { get; init; } = Speed.VeryFast;
+
+        public string PixelFormat { get; init; } = "auto";
 
         /// <summary>
         /// 输出帧数由视频帧率和播放时长决定，与物理模拟时长不一定相同。

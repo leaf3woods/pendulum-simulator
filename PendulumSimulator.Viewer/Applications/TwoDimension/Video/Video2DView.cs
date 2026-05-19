@@ -1,7 +1,8 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using ComputeSharp;
-using OpenCvSharp;
+using FFMpegCore;
+using FFMpegCore.Enums;
+using FFMpegCore.Pipes;
 using PendulumSimulator.Analysis.Observation;
 using PendulumSimulator.Core.GpuShader;
 using PendulumSimulator.Core.PhysicsSystem;
@@ -50,39 +51,54 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
             }
             var filePath = Path.Combine(_options.OutputDirectory, _fileName);
 
-            // OpenCV 的默认视频帧格式为 BGR，每个网格样本占 3 个字节。
+            // FFmpeg rawvideo 输入使用 BGR24，每个网格样本占 3 个字节。
             var frameBuffer = new byte[resolution * resolution * 3];
-            using var writer = new VideoWriter(
-                filePath,
-                VideoWriter.FourCC(_options.Codec[0], _options.Codec[1], _options.Codec[2], _options.Codec[3]),
-                _options.Fps,
-                new Size(resolution, resolution));
-
-            if (!writer.IsOpened())
-                throw new InvalidOperationException($"Video writer could not open {filePath}.");
-
-            using var frameMat = new Mat(resolution, resolution, MatType.CV_8UC3);
             var stopwatch = Stopwatch.StartNew();
 
             var totalBytes = (long)frameBuffer.Length * _options.FrameCount;
             var sizeMiB = totalBytes / (1024.0 * 1024.0);
-            PrintHeader(observation, field, sizeMiB);
+            var encoder = ResolveVideoEncoder(_options);
+            PrintHeader(observation, field, encoder, sizeMiB);
 
-            if (!PendulumFieldGpuRunner.IsSupportedPendulumCount(field.PendulumCount)
-                || !TryRunGpuFrames(field, frameBuffer, frameMat, writer, stopwatch))
-                RunCpuFrames(field, frameBuffer, frameMat, writer, stopwatch);
+            var source = new PendulumFramePipeSource(field, frameBuffer, resolution, _options, stopwatch);
+            var encoded = FFMpegArguments
+                .FromPipeInput(source)
+                .OutputToFile(filePath, overwrite: true, options =>
+                {
+                    options
+                        .WithVideoCodec(encoder.Codec)
+                        .WithFramerate(_options.Fps)
+                        .ForcePixelFormat(encoder.PixelFormat)
+                        .ForceFormat("mp4")
+                        .WithFastStart();
+
+                    if (encoder.ConstantRateFactor is int constantRateFactor)
+                        options.WithConstantRateFactor(constantRateFactor);
+                    if (encoder.SpeedPreset is Speed speedPreset)
+                        options.WithSpeedPreset(speedPreset);
+
+                    foreach (var argument in encoder.CustomArguments)
+                        options.WithCustomArgument(argument);
+                })
+                .WithLogLevel(FFMpegLogLevel.Error)
+                .ProcessSynchronously();
+
+            if (!encoded)
+                throw new InvalidOperationException($"FFmpeg could not encode {filePath}.");
 
             Console.WriteLine();
             Console.WriteLine($"done: {filePath}, {stopwatch.Elapsed.TotalSeconds:F2}s");
         }
 
-        void PrintHeader(ThetaObservation observation, PendulumSystemField field, double size = 0)
+        void PrintHeader(ThetaObservation observation, PendulumSystemField field, VideoEncoderPlan encoder, double size = 0)
         {
             var rows = new[]
             {
                 (Item: "output",     Value: _fileName, Extra: "size",     Info: size == 0 ? "unknown" : $"{size / 12:0.00} MB"),
                 (Item: "resolution", Value: $"[{observation.Resolution}]px x [{observation.Resolution}]px", Extra: "fps", Info: $"{_options.Fps} fps"),
                 (Item: "frames",     Value: $"{_options.FrameCount} frames", Extra: "duration", Info: $"{_options.DurationSeconds} s"),
+                (Item: "codec",      Value: encoder.Codec, Extra: "mode", Info: encoder.Description),
+                (Item: "quality",    Value: encoder.Quality, Extra: "pixel", Info: encoder.PixelFormat),
                 (Item: "observed",   Value: $"theta[{observation.StartIndex}], theta[{observation.StartIndex + 1}]", Extra: "systems", Info: $"{field.Count} pic")
             };
 
@@ -128,62 +144,6 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
                 : TimeSpan.FromSeconds(etaSeconds).ToString(@"hh\:mm\:ss");
             var output = $"\r[{bar}] {ratio * 100,5:F1}% ({current}/{total}) elapsed " + etaDisplay;
             Console.Write(output);
-        }
-
-        bool TryRunGpuFrames(
-            PendulumSystemField field,
-            byte[] frameBuffer,
-            Mat frameMat,
-            VideoWriter writer,
-            Stopwatch stopwatch)
-        {
-            var frame = 0;
-            try
-            {
-                using var gpuField = new PendulumFieldGpuRunner(field);
-                using var gpuFrame = gpuField.Device.AllocateReadWriteBuffer<int>(field.Count);
-                var packedFrameBuffer = new int[field.Count];
-
-                for (; frame < _options.FrameCount; frame++)
-                {
-                    // 状态和颜色映射都留在 GPU，只把最终 BGR 帧拷回 CPU 交给 OpenCV。
-                    gpuField.Step((float)_options.Render.TimeStep, _options.Render.SimulationStepsPerFrame);
-                    WriteBgrFrameGpu(frameBuffer, packedFrameBuffer, gpuFrame, gpuField, _options.Render.ColorScheme);
-                    WriteFrame(frameBuffer, frameMat, writer);
-
-                    WriteProgress(frame + 1, _options.FrameCount, stopwatch.Elapsed);
-                }
-
-                return true;
-            }
-            catch (Exception) when (frame == 0)
-            {
-                Console.WriteLine("GPU render path unavailable; falling back to CPU.");
-                return false;
-            }
-        }
-
-        void RunCpuFrames(
-            PendulumSystemField field,
-            byte[] frameBuffer,
-            Mat frameMat,
-            VideoWriter writer,
-            Stopwatch stopwatch)
-        {
-            for (int frame = 0; frame < _options.FrameCount; frame++)
-            {
-                field.Step(_options.Render.TimeStep, _options.Render.SimulationStepsPerFrame, useGpu: false);
-                WriteBgrFrameCpu(frameBuffer, field, _options.Render.ColorScheme);
-                WriteFrame(frameBuffer, frameMat, writer);
-
-                WriteProgress(frame + 1, _options.FrameCount, stopwatch.Elapsed);
-            }
-        }
-
-        static void WriteFrame(byte[] frameBuffer, Mat frameMat, VideoWriter writer)
-        {
-            Marshal.Copy(frameBuffer, 0, frameMat.Data, frameBuffer.Length);
-            writer.Write(frameMat);
         }
 
         static void WriteBgrFrameGpu(
@@ -242,8 +202,312 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
                 throw new ArgumentOutOfRangeException(nameof(options), "DurationSeconds must be greater than 0.");
             if (string.IsNullOrEmpty(options.OutputDirectory))
                 throw new ArgumentException("OutputDirectory cannot be empty.", nameof(options));
-            if (options.Codec is null || options.Codec.Length != 4)
-                throw new ArgumentException("Codec must contain exactly 4 characters.", nameof(options));
+            if (string.IsNullOrWhiteSpace(options.Codec))
+                throw new ArgumentException("Codec cannot be empty.", nameof(options));
+            if (options.ConstantRateFactor is < 0 or > 51)
+                throw new ArgumentOutOfRangeException(nameof(options), "ConstantRateFactor must be between 0 and 51.");
+            if (string.IsNullOrWhiteSpace(options.PixelFormat))
+                throw new ArgumentException("PixelFormat cannot be empty.", nameof(options));
         }
+
+        static VideoEncoderPlan ResolveVideoEncoder(Video2DViewOptions options)
+        {
+            if (!IsAuto(options.Codec))
+                return CreateManualEncoderPlan(options);
+
+            foreach (var candidate in HardwareEncoderCandidates)
+            {
+                var plan = candidate.ToPlan(options.ConstantRateFactor, options.PixelFormat);
+                if (CanUseEncoder(plan))
+                    return plan;
+            }
+
+            return new VideoEncoderPlan(
+                Codec: "libx264",
+                PixelFormat: ResolvePixelFormat(options.PixelFormat, "yuv420p"),
+                Quality: $"crf {options.ConstantRateFactor}",
+                Description: "CPU fallback",
+                ConstantRateFactor: options.ConstantRateFactor,
+                SpeedPreset: options.SpeedPreset,
+                CustomArguments: []);
+        }
+
+        static VideoEncoderPlan CreateManualEncoderPlan(Video2DViewOptions options)
+        {
+            var hardwareCandidate = HardwareEncoderCandidates.FirstOrDefault(candidate =>
+                candidate.Codec.Equals(options.Codec, StringComparison.OrdinalIgnoreCase));
+
+            return hardwareCandidate is not null
+                ? hardwareCandidate.ToPlan(options.ConstantRateFactor, options.PixelFormat)
+                : new VideoEncoderPlan(
+                    Codec: options.Codec,
+                    PixelFormat: ResolvePixelFormat(options.PixelFormat, "yuv420p"),
+                    Quality: $"crf {options.ConstantRateFactor}",
+                    Description: "manual",
+                    ConstantRateFactor: options.ConstantRateFactor,
+                    SpeedPreset: options.SpeedPreset,
+                    CustomArguments: []);
+        }
+
+        static bool CanUseEncoder(VideoEncoderPlan encoder)
+        {
+            var arguments =
+                "-hide_banner -loglevel error " +
+                "-f lavfi -i color=c=black:s=64x64:d=0.05 " +
+                "-frames:v 1 -an " +
+                $"-c:v {encoder.Codec} " +
+                $"-pix_fmt {encoder.PixelFormat} " +
+                string.Join(' ', encoder.CustomArguments) +
+                " -f null -";
+
+            try
+            {
+                using var process = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "ffmpeg",
+                    Arguments = arguments,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+
+                if (process is null)
+                    return false;
+
+                if (!process.WaitForExit(milliseconds: 3000))
+                {
+                    process.Kill(entireProcessTree: true);
+                    return false;
+                }
+
+                return process.ExitCode == 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        static bool IsAuto(string value)
+        {
+            return value.Equals("auto", StringComparison.OrdinalIgnoreCase);
+        }
+
+        static string ResolvePixelFormat(string configuredValue, string fallback)
+        {
+            return IsAuto(configuredValue) ? fallback : configuredValue;
+        }
+
+        static int ClampQuality(int quality)
+        {
+            return Math.Clamp(quality, 0, 51);
+        }
+
+        sealed class PendulumFramePipeSource(
+            PendulumSystemField field,
+            byte[] frameBuffer,
+            int resolution,
+            Video2DViewOptions options,
+            Stopwatch stopwatch) : IPipeSource
+        {
+            const string PixelFormat = "bgr24";
+
+            public string GetStreamArguments()
+                => $"-f rawvideo -r {options.Fps} -pix_fmt {PixelFormat} -s {resolution}x{resolution}";
+
+            public async Task WriteAsync(Stream outputStream, CancellationToken cancellationToken)
+            {
+                if (PendulumFieldGpuRunner.IsSupportedPendulumCount(field.PendulumCount))
+                {
+                    try
+                    {
+                        await WriteGpuFramesAsync(outputStream, cancellationToken);
+                        return;
+                    }
+                    catch (GpuRenderUnavailableException)
+                    {
+                        Console.WriteLine("GPU render path unavailable; falling back to CPU.");
+                    }
+                }
+
+                await WriteCpuFramesAsync(outputStream, cancellationToken);
+            }
+
+            async Task WriteGpuFramesAsync(Stream outputStream, CancellationToken cancellationToken)
+            {
+                using var gpuField = CreateGpuRunner(field);
+                using var gpuFrame = CreateGpuFrame(gpuField, field.Count);
+                var packedFrameBuffer = new int[field.Count];
+                var framesWritten = 0;
+
+                for (int frame = 0; frame < options.FrameCount; frame++)
+                {
+                    try
+                    {
+                        // 状态和颜色映射都留在 GPU，只把最终 BGR 帧拷回 CPU 交给 FFmpeg。
+                        gpuField.Step((float)options.Render.TimeStep, options.Render.SimulationStepsPerFrame);
+                        WriteBgrFrameGpu(frameBuffer, packedFrameBuffer, gpuFrame, gpuField, options.Render.ColorScheme);
+                    }
+                    catch (Exception exception) when (framesWritten == 0)
+                    {
+                        throw new GpuRenderUnavailableException(exception);
+                    }
+
+                    await WriteFrameAsync(outputStream, cancellationToken);
+                    framesWritten++;
+                    WriteProgress(frame + 1, options.FrameCount, stopwatch.Elapsed);
+                }
+            }
+
+            async Task WriteCpuFramesAsync(Stream outputStream, CancellationToken cancellationToken)
+            {
+                for (int frame = 0; frame < options.FrameCount; frame++)
+                {
+                    field.Step(options.Render.TimeStep, options.Render.SimulationStepsPerFrame, useGpu: false);
+                    WriteBgrFrameCpu(frameBuffer, field, options.Render.ColorScheme);
+
+                    await WriteFrameAsync(outputStream, cancellationToken);
+                    WriteProgress(frame + 1, options.FrameCount, stopwatch.Elapsed);
+                }
+            }
+
+            Task WriteFrameAsync(Stream outputStream, CancellationToken cancellationToken)
+                => outputStream.WriteAsync(frameBuffer, 0, frameBuffer.Length, cancellationToken);
+
+            static PendulumFieldGpuRunner CreateGpuRunner(PendulumSystemField field)
+            {
+                try
+                {
+                    return new PendulumFieldGpuRunner(field);
+                }
+                catch (Exception exception)
+                {
+                    throw new GpuRenderUnavailableException(exception);
+                }
+            }
+
+            static ReadWriteBuffer<int> CreateGpuFrame(PendulumFieldGpuRunner gpuField, int count)
+            {
+                try
+                {
+                    return gpuField.Device.AllocateReadWriteBuffer<int>(count);
+                }
+                catch (Exception exception)
+                {
+                    throw new GpuRenderUnavailableException(exception);
+                }
+            }
+        }
+
+        sealed class GpuRenderUnavailableException(Exception innerException) : Exception(
+            "GPU render path is unavailable.",
+            innerException)
+        {
+        }
+
+        sealed record VideoEncoderPlan(
+            string Codec,
+            string PixelFormat,
+            string Quality,
+            string Description,
+            int? ConstantRateFactor,
+            Speed? SpeedPreset,
+            string[] CustomArguments);
+
+        sealed record HardwareEncoderCandidate(
+            string Codec,
+            string Description,
+            string PixelFormat,
+            string QualityName,
+            Func<int, string[]> CreateArguments)
+        {
+            public VideoEncoderPlan ToPlan(int quality, string configuredPixelFormat)
+            {
+                var normalizedQuality = ClampQuality(quality);
+                return new VideoEncoderPlan(
+                    Codec,
+                    ResolvePixelFormat(configuredPixelFormat, PixelFormat),
+                    $"{QualityName} {normalizedQuality}",
+                    Description,
+                    ConstantRateFactor: null,
+                    SpeedPreset: null,
+                    CreateArguments(normalizedQuality));
+            }
+        }
+
+        static readonly HardwareEncoderCandidate[] HardwareEncoderCandidates =
+        [
+            new(
+                Codec: "hevc_nvenc",
+                Description: "NVIDIA NVENC HEVC",
+                PixelFormat: "yuv420p",
+                QualityName: "cq",
+                CreateArguments: quality =>
+                [
+                    "-preset medium",
+                    "-rc vbr",
+                    $"-cq {quality}",
+                    "-b:v 0"
+                ]),
+            new(
+                Codec: "h264_nvenc",
+                Description: "NVIDIA NVENC H.264",
+                PixelFormat: "yuv420p",
+                QualityName: "cq",
+                CreateArguments: quality =>
+                [
+                    "-preset medium",
+                    "-rc vbr",
+                    $"-cq {quality}",
+                    "-b:v 0"
+                ]),
+            new(
+                Codec: "hevc_qsv",
+                Description: "Intel QSV HEVC",
+                PixelFormat: "nv12",
+                QualityName: "global_quality",
+                CreateArguments: quality =>
+                [
+                    "-preset medium",
+                    $"-global_quality {quality}"
+                ]),
+            new(
+                Codec: "h264_qsv",
+                Description: "Intel QSV H.264",
+                PixelFormat: "nv12",
+                QualityName: "global_quality",
+                CreateArguments: quality =>
+                [
+                    "-preset medium",
+                    $"-global_quality {quality}"
+                ]),
+            new(
+                Codec: "hevc_amf",
+                Description: "AMD AMF HEVC",
+                PixelFormat: "yuv420p",
+                QualityName: "qp",
+                CreateArguments: quality =>
+                [
+                    "-quality balanced",
+                    "-rc cqp",
+                    $"-qp_i {quality}",
+                    $"-qp_p {quality}",
+                    $"-qp_b {Math.Min(quality + 2, 51)}"
+                ]),
+            new(
+                Codec: "h264_amf",
+                Description: "AMD AMF H.264",
+                PixelFormat: "yuv420p",
+                QualityName: "qp",
+                CreateArguments: quality =>
+                [
+                    "-quality balanced",
+                    "-rc cqp",
+                    $"-qp_i {quality}",
+                    $"-qp_p {quality}",
+                    $"-qp_b {Math.Min(quality + 2, 51)}"
+                ])
+        ];
     }
 }

@@ -303,6 +303,10 @@ It consumes Analysis output and does not participate in physics modelling.
 
 Each view verifies `observation.Dimension` at the entry of `Run`; mismatched 2D/3D inputs are rejected early.
 
+视频输出通过 FFMpegCore 调用本机 `ffmpeg`，运行 `Video2DView` 前需要确保 `ffmpeg` 在 `PATH` 中，或通过 FFMpegCore 配置指定二进制目录。
+
+Video output uses FFMpegCore to invoke the local `ffmpeg` binary. Before running `Video2DView`, ensure `ffmpeg` is available on `PATH`, or configure the binary directory through FFMpegCore.
+
 ## 暂时不做什么 / What We Are Not Prioritizing Yet
 
 当前阶段暂时不优先处理：
