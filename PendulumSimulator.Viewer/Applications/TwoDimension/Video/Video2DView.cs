@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using ComputeSharp;
 using OpenCvSharp;
 using PendulumSimulator.Analysis.Observation;
+using PendulumSimulator.Core.GpuShader;
 using PendulumSimulator.Core.PhysicsSystem;
 using PendulumSimulator.Viewer.Rendering;
 
@@ -66,16 +68,8 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
             var sizeMiB = totalBytes / (1024.0 * 1024.0);
             PrintHeader(observation, field, sizeMiB);
 
-            for (int frame = 0; frame < _options.FrameCount; frame++)
-            {
-                // 每帧先推进整批物理系统，再把当前状态映射成颜色。
-                field.Step(_options.Render.TimeStep, _options.Render.SimulationStepsPerFrame);
-                WriteBgrFrame(frameBuffer, field, _options.Render.ColorScheme);
-                Marshal.Copy(frameBuffer, 0, frameMat.Data, frameBuffer.Length);
-                writer.Write(frameMat);
-
-                WriteProgress(frame + 1, _options.FrameCount, stopwatch.Elapsed);
-            }
+            if (field.PendulumCount != 2 || !TryRunGpuFrames(field, frameBuffer, frameMat, writer, stopwatch))
+                RunCpuFrames(field, frameBuffer, frameMat, writer, stopwatch);
 
             Console.WriteLine();
             Console.WriteLine($"done: {filePath}, {stopwatch.Elapsed.TotalSeconds:F2}s");
@@ -135,7 +129,81 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
             Console.Write(output);
         }
 
-        static void WriteBgrFrame(byte[] buffer, PendulumSystemField field, PendulumColorScheme scheme)
+        bool TryRunGpuFrames(
+            PendulumSystemField field,
+            byte[] frameBuffer,
+            Mat frameMat,
+            VideoWriter writer,
+            Stopwatch stopwatch)
+        {
+            var frame = 0;
+            try
+            {
+                using var gpuField = new PendulumFieldGpuRunner(field);
+                using var gpuFrame = gpuField.Device.AllocateReadWriteBuffer<int>(field.Count);
+                var packedFrameBuffer = new int[field.Count];
+
+                for (; frame < _options.FrameCount; frame++)
+                {
+                    // 状态和颜色映射都留在 GPU，只把最终 BGR 帧拷回 CPU 交给 OpenCV。
+                    gpuField.Step((float)_options.Render.TimeStep, _options.Render.SimulationStepsPerFrame);
+                    WriteBgrFrameGpu(frameBuffer, packedFrameBuffer, gpuFrame, gpuField, _options.Render.ColorScheme);
+                    WriteFrame(frameBuffer, frameMat, writer);
+
+                    WriteProgress(frame + 1, _options.FrameCount, stopwatch.Elapsed);
+                }
+
+                return true;
+            }
+            catch (Exception) when (frame == 0)
+            {
+                Console.WriteLine("GPU render path unavailable; falling back to CPU.");
+                return false;
+            }
+        }
+
+        void RunCpuFrames(
+            PendulumSystemField field,
+            byte[] frameBuffer,
+            Mat frameMat,
+            VideoWriter writer,
+            Stopwatch stopwatch)
+        {
+            for (int frame = 0; frame < _options.FrameCount; frame++)
+            {
+                field.Step(_options.Render.TimeStep, _options.Render.SimulationStepsPerFrame, useGpu: false);
+                WriteBgrFrameCpu(frameBuffer, field, _options.Render.ColorScheme);
+                WriteFrame(frameBuffer, frameMat, writer);
+
+                WriteProgress(frame + 1, _options.FrameCount, stopwatch.Elapsed);
+            }
+        }
+
+        static void WriteFrame(byte[] frameBuffer, Mat frameMat, VideoWriter writer)
+        {
+            Marshal.Copy(frameBuffer, 0, frameMat.Data, frameBuffer.Length);
+            writer.Write(frameMat);
+        }
+
+        static void WriteBgrFrameGpu(
+            byte[] buffer,
+            int[] packedBuffer,
+            ReadWriteBuffer<int> gpuFrame,
+            PendulumFieldGpuRunner gpuField,
+            PendulumColorScheme scheme)
+        {
+            var (dispatchWidth, dispatchHeight) = gpuField.DispatchSize;
+            int grayscale = scheme == PendulumColorScheme.GrayscaleAngles ? 1 : 0;
+
+            gpuField.Device.For(
+                dispatchWidth,
+                dispatchHeight,
+                new PendulumBgrFrameShader(gpuField.States, gpuFrame, gpuField.Count, grayscale));
+            gpuFrame.CopyTo(packedBuffer);
+            UnpackBgrFrame(packedBuffer, buffer);
+        }
+
+        static void WriteBgrFrameCpu(byte[] buffer, PendulumSystemField field, PendulumColorScheme scheme)
         {
             // Field 的线性布局与二维图像的 x + y * resolution 顺序一致，可直接顺序写入。
             for (int i = 0; i < field.Count; i++)
@@ -145,6 +213,18 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
                 buffer[offset + 0] = color.B;
                 buffer[offset + 1] = color.G;
                 buffer[offset + 2] = color.R;
+            }
+        }
+
+        static void UnpackBgrFrame(IReadOnlyList<int> packedBuffer, byte[] buffer)
+        {
+            for (int i = 0; i < packedBuffer.Count; i++)
+            {
+                int color = packedBuffer[i];
+                int offset = i * 3;
+                buffer[offset + 0] = (byte)(color & 0xFF);
+                buffer[offset + 1] = (byte)((color >> 8) & 0xFF);
+                buffer[offset + 2] = (byte)((color >> 16) & 0xFF);
             }
         }
 

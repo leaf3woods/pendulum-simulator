@@ -29,7 +29,7 @@ namespace PendulumSimulator.Core.PhysicsSystem
 
         public PendulumSystem this[int index] => _systems[index];
 
-        public void Step(double dt, int steps = 1, bool useGpu = true)
+        public void Step(double dt, int steps = 1, bool useGpu = false)
         {
             if (steps <= 0)
                 throw new ArgumentOutOfRangeException(nameof(steps), "Step count must be greater than 0.");

@@ -38,6 +38,37 @@ namespace PendulumSimulator.Core.GpuShader
             _states = _device.AllocateReadWriteBuffer(states.ToArray());
         }
 
+        public GraphicsDevice Device
+        {
+            get
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                return _device;
+            }
+        }
+
+        public ReadWriteBuffer<float> States
+        {
+            get
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                return _states;
+            }
+        }
+
+        public int Count => _systemField.Count;
+
+        public (int Width, int Height) DispatchSize
+        {
+            get
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                int dispatchWidth = Math.Min(_systemField.Count, DispatchTileWidth);
+                int dispatchHeight = (_systemField.Count + dispatchWidth - 1) / dispatchWidth;
+                return (dispatchWidth, dispatchHeight);
+            }
+        }
+
 
         public void Step(float dt, int steps = 1)
         {
@@ -48,8 +79,7 @@ namespace PendulumSimulator.Core.GpuShader
             if (steps <= 0)
                 throw new ArgumentOutOfRangeException(nameof(steps), "Step count must be greater than 0.");
 
-            int dispatchWidth = Math.Min(_systemField.Count, DispatchTileWidth);
-            int dispatchHeight = (_systemField.Count + dispatchWidth - 1) / dispatchWidth;
+            var (dispatchWidth, dispatchHeight) = DispatchSize;
 
             _device.For(
                 dispatchWidth,
@@ -62,7 +92,7 @@ namespace PendulumSimulator.Core.GpuShader
                     (float)_defaultPendulumSystem[1].Length,
                     dt,
                     steps,
-                    _systemField.Count));
+                    Count));
         }
 
         public float[] CopyStatesToCpu()

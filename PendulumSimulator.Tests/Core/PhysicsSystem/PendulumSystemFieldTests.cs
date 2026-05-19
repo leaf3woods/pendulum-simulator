@@ -22,18 +22,38 @@ namespace PendulumSimulator.Tests.Core.PhysicsSystem
         [Fact]
         public void StepAdvancesEverySystem()
         {
-            var field = new PendulumSystemField(
+            var field = CreateField();
+            double[][] before = field.Systems.Select(system => system.ToStateVector()).ToArray();
+
+            field.Step(dt: 0.01, steps: 10);
+
+            AssertEverySystemAdvanced(field, before);
+        }
+
+        [Fact]
+        public void GpuStepAdvancesEverySystem()
+        {
+            var field = CreateField();
+            double[][] before = field.Systems.Select(system => system.ToStateVector()).ToArray();
+
+            field.Step(dt: 0.01, steps: 10, useGpu: true);
+
+            AssertEverySystemAdvanced(field, before);
+        }
+
+        static PendulumSystemField CreateField()
+        {
+            return new PendulumSystemField(
             [
                 CreateSystem(0.1, 0.2),
                 CreateSystem(0.3, 0.4),
                 CreateSystem(0.5, 0.6)
             ]);
-            double[][] before = field.Systems.Select(system => system.ToStateVector()).ToArray();
+        }
 
-            field.Step(dt: 0.01, steps: 10);
-
+        static void AssertEverySystemAdvanced(PendulumSystemField field, double[][] before)
+        {
             double[][] after = field.Systems.Select(system => system.ToStateVector()).ToArray();
-
             for (int i = 0; i < before.Length; i++)
             {
                 Assert.NotEqual(before[i], after[i]);
