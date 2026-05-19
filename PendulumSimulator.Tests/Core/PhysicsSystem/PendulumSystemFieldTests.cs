@@ -25,7 +25,8 @@ namespace PendulumSimulator.Tests.Core.PhysicsSystem
             var field = new PendulumSystemField(
             [
                 CreateSystem(0.1, 0.2),
-                CreateSystem(0.3, 0.4)
+                CreateSystem(0.3, 0.4),
+                CreateSystem(0.5, 0.6)
             ]);
             double[][] before = field.Systems.Select(system => system.ToStateVector()).ToArray();
 

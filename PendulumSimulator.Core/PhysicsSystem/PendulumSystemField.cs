@@ -1,3 +1,5 @@
+using PendulumSimulator.Core.GpuShader;
+
 namespace PendulumSimulator.Core.PhysicsSystem
 {
     /// <summary>
@@ -27,18 +29,26 @@ namespace PendulumSimulator.Core.PhysicsSystem
 
         public PendulumSystem this[int index] => _systems[index];
 
-        public void Step(double dt, int steps = 1)
+        public void Step(double dt, int steps = 1, bool useGpu = true)
         {
             if (steps <= 0)
                 throw new ArgumentOutOfRangeException(nameof(steps), "Step count must be greater than 0.");
-
-            // 以物理步为外层循环，确保整片场在进入下一步前都停在同一个模拟时间。
-            for (int step = 0; step < steps; step++)
+            if (!useGpu)
             {
-                Parallel.ForEach(_systems, system =>
+                // 以物理步为外层循环，确保整片场在进入下一步前都停在同一个模拟时间。
+                for (int step = 0; step < steps; step++)
                 {
-                    system.Step(dt);
-                });
+                    Parallel.ForEach(_systems, system =>
+                    {
+                        system.Step(dt);
+                    });
+                }
+            }
+            else
+            {
+                using var shaderField = new PendulumFieldGpuRunner(this);
+                shaderField.Step((float)dt, steps);
+                this.ApplyStates(shaderField.CopyStatesToCpu());
             }
         }
     }
