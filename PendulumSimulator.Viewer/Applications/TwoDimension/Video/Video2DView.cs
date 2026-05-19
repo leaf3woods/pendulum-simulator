@@ -68,7 +68,8 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
             var sizeMiB = totalBytes / (1024.0 * 1024.0);
             PrintHeader(observation, field, sizeMiB);
 
-            if (field.PendulumCount != 2 || !TryRunGpuFrames(field, frameBuffer, frameMat, writer, stopwatch))
+            if (!PendulumFieldGpuRunner.IsSupportedPendulumCount(field.PendulumCount)
+                || !TryRunGpuFrames(field, frameBuffer, frameMat, writer, stopwatch))
                 RunCpuFrames(field, frameBuffer, frameMat, writer, stopwatch);
 
             Console.WriteLine();
@@ -79,7 +80,7 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
         {
             var rows = new[]
             {
-                (Item: "output",     Value: _fileName, Extra: "size",     Info: size == 0 ? "unknown" : $"{size:0.00} MB"),
+                (Item: "output",     Value: _fileName, Extra: "size",     Info: size == 0 ? "unknown" : $"{size / 12:0.00} MB"),
                 (Item: "resolution", Value: $"[{observation.Resolution}]px x [{observation.Resolution}]px", Extra: "fps", Info: $"{_options.Fps} fps"),
                 (Item: "frames",     Value: $"{_options.FrameCount} frames", Extra: "duration", Info: $"{_options.DurationSeconds} s"),
                 (Item: "observed",   Value: $"theta[{observation.StartIndex}], theta[{observation.StartIndex + 1}]", Extra: "systems", Info: $"{field.Count} pic")
@@ -198,7 +199,12 @@ namespace PendulumSimulator.Viewer.Applications.TwoDimension.Video
             gpuField.Device.For(
                 dispatchWidth,
                 dispatchHeight,
-                new PendulumBgrFrameShader(gpuField.States, gpuFrame, gpuField.Count, grayscale));
+                new PendulumBgrFrameShader(
+                    gpuField.States,
+                    gpuFrame,
+                    gpuField.Count,
+                    gpuField.StateStride,
+                    grayscale));
             gpuFrame.CopyTo(packedBuffer);
             UnpackBgrFrame(packedBuffer, buffer);
         }

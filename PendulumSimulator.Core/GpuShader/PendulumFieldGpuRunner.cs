@@ -19,23 +19,28 @@ namespace PendulumSimulator.Core.GpuShader
             _systemField = systemField;
             _defaultPendulumSystem = systemField[0];
 
-            if (systemField.Count == 0 || _defaultPendulumSystem.Count != 2)
-                throw new ArgumentException("invalid pendulum systems.", nameof(systemField));
-            var states = new float[systemField.Count * systemField.PendulumCount * 2];
+            if (systemField.Count == 0 || !IsSupportedPendulumCount(_defaultPendulumSystem.Count))
+                throw new ArgumentException("GPU stepping supports 2, 3, or 4 pendulums.", nameof(systemField));
+            var states = new float[systemField.Count * StateStride];
 
             for (int sampleIndex = 0; sampleIndex < systemField.Count; sampleIndex++)
             {
                 double[] state = systemField[sampleIndex].ToStateVector();
-                int offset = sampleIndex * systemField.PendulumCount * 2;
+                int offset = sampleIndex * StateStride;
 
-                states[offset + 0] = (float)state[0];
-                states[offset + 1] = (float)state[1];
-                states[offset + 2] = (float)state[2];
-                states[offset + 3] = (float)state[3];
+                for (int stateIndex = 0; stateIndex < StateStride; stateIndex++)
+                {
+                    states[offset + stateIndex] = (float)state[stateIndex];
+                }
             }
 
             _device = GraphicsDevice.GetDefault();
             _states = _device.AllocateReadWriteBuffer(states.ToArray());
+        }
+
+        public static bool IsSupportedPendulumCount(int pendulumCount)
+        {
+            return pendulumCount is >= 2 and <= 4;
         }
 
         public GraphicsDevice Device
@@ -57,6 +62,10 @@ namespace PendulumSimulator.Core.GpuShader
         }
 
         public int Count => _systemField.Count;
+
+        public int PendulumCount => _systemField.PendulumCount;
+
+        public int StateStride => PendulumCount * 2;
 
         public (int Width, int Height) DispatchSize
         {
@@ -81,18 +90,62 @@ namespace PendulumSimulator.Core.GpuShader
 
             var (dispatchWidth, dispatchHeight) = DispatchSize;
 
-            _device.For(
-                dispatchWidth,
-                dispatchHeight,
-                new DoublePendulumStepShader(
-                    _states,
-                    (float)_defaultPendulumSystem[0].Mass,
-                    (float)_defaultPendulumSystem[1].Mass,
-                    (float)_defaultPendulumSystem[0].Length,
-                    (float)_defaultPendulumSystem[1].Length,
-                    dt,
-                    steps,
-                    Count));
+            switch (PendulumCount)
+            {
+                case 2:
+                    _device.For(
+                        dispatchWidth,
+                        dispatchHeight,
+                        new DoublePendulumStepShader(
+                            _states,
+                            (float)_defaultPendulumSystem[0].Mass,
+                            (float)_defaultPendulumSystem[1].Mass,
+                            (float)_defaultPendulumSystem[0].Length,
+                            (float)_defaultPendulumSystem[1].Length,
+                            dt,
+                            steps,
+                            Count));
+                    break;
+
+                case 3:
+                    _device.For(
+                        dispatchWidth,
+                        dispatchHeight,
+                        new TriplePendulumStepShader(
+                            _states,
+                            (float)_defaultPendulumSystem[0].Mass,
+                            (float)_defaultPendulumSystem[1].Mass,
+                            (float)_defaultPendulumSystem[2].Mass,
+                            (float)_defaultPendulumSystem[0].Length,
+                            (float)_defaultPendulumSystem[1].Length,
+                            (float)_defaultPendulumSystem[2].Length,
+                            dt,
+                            steps,
+                            Count));
+                    break;
+
+                case 4:
+                    _device.For(
+                        dispatchWidth,
+                        dispatchHeight,
+                        new QuadruplePendulumStepShader(
+                            _states,
+                            (float)_defaultPendulumSystem[0].Mass,
+                            (float)_defaultPendulumSystem[1].Mass,
+                            (float)_defaultPendulumSystem[2].Mass,
+                            (float)_defaultPendulumSystem[3].Mass,
+                            (float)_defaultPendulumSystem[0].Length,
+                            (float)_defaultPendulumSystem[1].Length,
+                            (float)_defaultPendulumSystem[2].Length,
+                            (float)_defaultPendulumSystem[3].Length,
+                            dt,
+                            steps,
+                            Count));
+                    break;
+
+                default:
+                    throw new NotSupportedException($"GPU stepping does not support {PendulumCount} pendulums.");
+            }
         }
 
         public float[] CopyStatesToCpu()

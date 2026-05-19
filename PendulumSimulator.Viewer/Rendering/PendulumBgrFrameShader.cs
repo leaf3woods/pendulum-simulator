@@ -8,11 +8,11 @@ namespace PendulumSimulator.Viewer.Rendering
         ReadWriteBuffer<float> states,
         ReadWriteBuffer<int> frame,
         int systemCount,
+        int stateStride,
         int grayscale) : IComputeShader
     {
         const float Pi = 3.14159265358979323846f;
         const float TwoPi = 6.28318530717958647692f;
-        const int StateStride = 4;
 
         public void Execute()
         {
@@ -20,7 +20,7 @@ namespace PendulumSimulator.Viewer.Rendering
             if (sampleIndex >= systemCount)
                 return;
 
-            int stateOffset = sampleIndex * StateStride;
+            int stateOffset = sampleIndex * stateStride;
             int r = AngleToByte(states[stateOffset + 0]);
             int g = AngleToByte(states[stateOffset + 1]);
             int b = AngleToByte(states[stateOffset + 1] - states[stateOffset + 0]);

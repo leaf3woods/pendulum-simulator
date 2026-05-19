@@ -11,20 +11,20 @@ namespace PendulumSimulator.Core.GpuShader
 
             if (states.Count != systems.Count * stateStride)
                 throw new ArgumentException(
-                    $"State buffer length must be {systems.Count * stateStride} for {systems.Count} double pendulum systems.",
+                    $"State buffer length must be {systems.Count * stateStride} for {systems.Count} pendulum systems.",
                     nameof(states));
 
             for (int sampleIndex = 0; sampleIndex < systems.Count; sampleIndex++)
             {
                 int offset = sampleIndex * stateStride;
+                var state = new double[stateStride];
 
-                systems[sampleIndex].ApplyStateVector(
-                [
-                    states[offset + 0],
-                    states[offset + 1],
-                    states[offset + 2],
-                    states[offset + 3]
-                ]);
+                for (int stateIndex = 0; stateIndex < stateStride; stateIndex++)
+                {
+                    state[stateIndex] = states[offset + stateIndex];
+                }
+
+                systems[sampleIndex].ApplyStateVector(state);
             }
         }
     }
